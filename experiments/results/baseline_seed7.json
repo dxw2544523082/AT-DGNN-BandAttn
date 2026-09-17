@@ -1,0 +1,39 @@
+{
+  "protocol": {
+    "subject": 0,
+    "folds": 3,
+    "epochs": 40,
+    "batch_size": 64,
+    "lr": 0.001,
+    "seed": 7,
+    "val_rate": 0.2,
+    "label_smoothing": 0.1,
+    "early_stopping": false,
+    "role": "baseline",
+    "note": "extracted from the archived AT-DGNN runs; verified bit-identical to the current code path (band_attn=none)"
+  },
+  "results": [
+    {
+      "variant": "AT-DGNN",
+      "params": 2680350,
+      "acc_mean": 0.917233560090703,
+      "acc_std": 0.0486075988894014,
+      "f1_mean": 0.9157849719780639,
+      "f1_std": 0.04861122395027379,
+      "vsel_acc_mean": 0.9104308390022676,
+      "vsel_acc_std": 0.06243038502465397,
+      "vsel_f1_mean": 0.909226186953166,
+      "seconds": 81.98343968391418,
+      "fold_acc": [
+        0.9183673469387755,
+        0.8571428571428571,
+        0.9761904761904762
+      ],
+      "fold_f1": [
+        0.9140350877192982,
+        0.8571428571428571,
+        0.9761769710720363
+      ]
+    }
+  ]
+}
