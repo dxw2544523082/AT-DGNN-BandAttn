@@ -81,9 +81,7 @@ def pprint(x):
 
 def get_model(args):
     idx_local_graph = 0
-    graph_hidden = None if args.graph_hidden <= 0 else args.graph_hidden
-    if args.model in ('LGGNet', 'AT-DGNN', 'AT-DGNN-AttGraph', 'AT-DGNN-TemporalAttn',
-                      'AT-DGNN-FixedLayout', 'AT-DGNN-BandAttn'):
+    if args.model in ('LGGNet', 'AT-DGNN', 'AT-DGNN-BandAttn', 'AT-DGNN-ScaleAttn'):
         idx_local_graph = list(np.array(h5py.File('num_chan_local_graph_{}.hdf'.format(args.graph_type), 'r')['data']))
     if args.model == 'AT-DGNN':
         model = ATDGNN(
@@ -92,23 +90,7 @@ def get_model(args):
             num_T=args.T, out_graph=args.hidden,
             dropout_rate=args.dropout,
             pool=args.pool, pool_step_rate=args.pool_step_rate,
-            idx_graph=idx_local_graph,
-            graph_hidden=graph_hidden,
-            sliding_layout=args.sliding_layout,
-            sliding_vectorized=args.sliding_vectorized)
-    elif args.model == 'AT-DGNN-FixedLayout':
-        # baseline with the sliding-window flattening repaired so that dimension 1
-        # is the electrode axis again (see SlidingWindowProcessor docstring)
-        model = ATDGNN(
-            num_classes=args.num_class, input_size=args.input_shape,
-            sampling_rate=args.target_rate,
-            num_T=args.T, out_graph=args.hidden,
-            dropout_rate=args.dropout,
-            pool=args.pool, pool_step_rate=args.pool_step_rate,
-            idx_graph=idx_local_graph,
-            graph_hidden=graph_hidden,
-            sliding_layout='fixed',
-            sliding_vectorized=args.sliding_vectorized)
+            idx_graph=idx_local_graph)
     elif args.model == 'AT-DGNN-BandAttn':
         model = ATDGNN_BandAttn(
             num_classes=args.num_class, input_size=args.input_shape,
@@ -117,43 +99,21 @@ def get_model(args):
             dropout_rate=args.dropout,
             pool=args.pool, pool_step_rate=args.pool_step_rate,
             idx_graph=idx_local_graph,
-            graph_hidden=graph_hidden,
             band_attn=args.band_attn,
-            band_numtaps=args.band_numtaps,
-            band_hidden=args.band_hidden,
             band_kind=args.band_kind,
-            sliding_layout=args.sliding_layout,
-            sliding_vectorized=args.sliding_vectorized)
-    elif args.model == 'AT-DGNN-TemporalAttn':
-        model = ATDGNN_TemporalAttn(
+            band_fuse=args.band_fuse,
+            band_numtaps=args.band_numtaps,
+            band_hidden=args.band_hidden)
+    elif args.model == 'AT-DGNN-ScaleAttn':
+        model = ATDGNN_ScaleAttn(
             num_classes=args.num_class, input_size=args.input_shape,
             sampling_rate=args.target_rate,
             num_T=args.T, out_graph=args.hidden,
             dropout_rate=args.dropout,
             pool=args.pool, pool_step_rate=args.pool_step_rate,
             idx_graph=idx_local_graph,
-            graph_hidden=graph_hidden,
-            temporal_attn=args.temporal_attn,
-            temporal_dim=args.temporal_dim,
-            temporal_placement=args.temporal_placement,
-            temporal_residual=args.temporal_residual,
-            temporal_init_gain=args.temporal_init_gain,
-            sliding_layout=args.sliding_layout,
-            sliding_vectorized=args.sliding_vectorized)
-    elif args.model == 'AT-DGNN-AttGraph':
-        model = ATDGNN_AttGraph(
-            num_classes=args.num_class, input_size=args.input_shape,
-            sampling_rate=args.target_rate,
-            num_T=args.T, out_graph=args.hidden,
-            dropout_rate=args.dropout,
-            pool=args.pool, pool_step_rate=args.pool_step_rate,
-            idx_graph=idx_local_graph,
-            use_attn_graph=args.use_attn_graph,
-            use_global_attn=args.use_global_attn,
-            graph_hidden=graph_hidden,
-            attn_self_loop=args.attn_self_loop,
-            sliding_layout=args.sliding_layout,
-            sliding_vectorized=args.sliding_vectorized)
+            scale_attn=args.scale_attn,
+            scale_hidden=args.scale_hidden)
     elif args.model == 'LGGNet':
         model = LGGNet(
             num_classes=args.num_class, input_size=args.input_shape,

@@ -181,3 +181,9 @@ data_eeg_*/
 data_raw_*/
 _loso_plumbing/
 experiments/results/ckpt/
+
+# --- local datasets (large, licensed, not redistributable) ---
+DEAP/
+SEED/
+data_raw_*/
+experiments/results/*.pth

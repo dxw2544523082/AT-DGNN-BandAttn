@@ -22,7 +22,11 @@ import sys
 import numpy as np
 
 BASELINE = 'AT-DGNN'
-ORDER = [BASELINE, 'AT-DGNN-BandAttn', 'BandAttn (static)', 'BandAttn (adaptive)']
+ORDER = [BASELINE,
+         # multi-scale (frequency-scale) attention over the Tception branches
+         'AT-DGNN-ScaleAttn', 'ScaleAttn (static)', 'ScaleAttn (adaptive)', 'ScaleAttn (scalar)',
+         # band attention on the input signal
+         'AT-DGNN-BandAttn', 'BandAttn (static)', 'BandAttn (adaptive)']
 
 
 def load(patterns):

@@ -43,68 +43,40 @@ def set_config():
     parser.add_argument('--save-model', type=bool, default=True)
     # Model Parameters
     parser.add_argument('--model', type=str, default='AT-DGNN',
-                        choices=['AT-DGNN', 'AT-DGNN-FixedLayout', 'AT-DGNN-AttGraph', 'AT-DGNN-TemporalAttn', 'AT-DGNN-BandAttn', 'LGGNet', 'EEGNet', 'DeepConvNet', 'ShallowConvNet',
-                                 'EEG-TCNet', 'TSception', 'TCNet-Fusion', 'ATCNet', 'DGCNN'])
+                        choices=['AT-DGNN', 'LGGNet', 'EEGNet', 'DeepConvNet', 'ShallowConvNet', 'EEG-TCNet',
+                                 'TSception', 'TCNet-Fusion', 'ATCNet', 'DGCNN',
+                                 'AT-DGNN-BandAttn', 'AT-DGNN-ScaleAttn'])
     parser.add_argument('--pool', type=int, default=16)
     parser.add_argument('--pool-step-rate', type=float, default=0.25)
     parser.add_argument('--T', type=int, default=64)
     parser.add_argument('--graph-type', type=str, default='fro', choices=['fro', 'gen', 'hem', 'BL'])
     parser.add_argument('--hidden', type=int, default=32)  # 隐藏层
-    # band-attention variant: sample-adaptive weighting over canonical EEG bands
+
+    # ---- multi-scale (frequency-scale) attention over the Tception branches ----
+    parser.add_argument('--scale-attn', type=str, default='both',
+                        choices=['none', 'static', 'adaptive', 'both', 'scalar'],
+                        help='static: learnable branch prior only; adaptive: sample-dependent '
+                             'modulation; both: their sum (default); scalar: one learned weight '
+                             'per branch, shared by all samples')
+    parser.add_argument('--scale-hidden', type=int, default=8,
+                        help='hidden width of the shared branch-score MLP')
+
+    # ---- band attention (this work) ----
     parser.add_argument('--band-attn', type=str, default='both',
                         choices=['none', 'static', 'adaptive', 'both'],
                         help='static: learnable band prior only; adaptive: sample-dependent '
-                             'modulation only; both: sum of the two (default)')
-    parser.add_argument('--band-numtaps', type=int, default=129,
-                        help='FIR length of the fixed band-split filters')
+                             'modulation only; both: their sum (default); none: baseline')
     parser.add_argument('--band-kind', type=str, default='fft', choices=['fft', 'fir'],
-                        help='fft: brick-wall masks (zero band leakage, default); '
-                             'fir: linear-phase FIR telescoping (wide transition bands)')
+                        help='fft: brick-wall masks (no inter-band leakage, default); '
+                             'fir: linear-phase FIR telescoping')
+    parser.add_argument('--band-numtaps', type=int, default=129,
+                        help='FIR length when --band-kind fir')
+    parser.add_argument('--band-fuse', type=str, default='residual',
+                        choices=['residual', 'replace'],
+                        help='residual: x + sum(beta_k-1)*X_k (identity when beta==1, '
+                             'default); replace: sum(beta_k*X_k), only approximately x')
     parser.add_argument('--band-hidden', type=int, default=8,
-                        help='hidden width of the shared score MLP (adaptive part)')
-
-    # sliding-window tensor layout / implementation
-    parser.add_argument('--sliding-layout', type=str, default='legacy', choices=['legacy', 'fixed'],
-                        help="legacy: bit-compatible with the original (scrambled) flattening; "
-                             "fixed: dimension 1 is the electrode axis again (see "
-                             "SlidingWindowProcessor docstring)")
-    parser.add_argument('--sliding-vectorize', dest='sliding_vectorized', action='store_true',
-                        default=False,
-                        help='opt-in only: batching all windows into one MHSA call was measured to be '
-                             '~4.5x SLOWER than the original Python loop (1339 ms vs 301 ms per '
-                             'fwd+bwd+step at batch 64), so the loop is the default. The batched '
-                             'path is numerically equivalent (max abs diff 0.0) but slower.')
-    parser.add_argument('--graph-hidden', type=int, default=-1,
-                        help='width of the hidden layers inside the stacked graph convolution; '
-                             '<=0 keeps the AT-DGNN default (input_shape[2]). Used for the '
-                             'parameter-matched control experiments.')
-
-    # AT-DGNN-AttGraph ablation switches (both default to the full model)
-    parser.add_argument('--use-attn-graph', dest='use_attn_graph', action='store_true', default=True,
-                        help='use the attention-generated dynamic adjacency A_att = softmax(H A H^T)')
-    parser.add_argument('--no-attn-graph', dest='use_attn_graph', action='store_false',
-                        help='ablation: fall back to the feature self-similarity adjacency of AT-DGNN')
-    parser.add_argument('--use-global-attn', dest='use_global_attn', action='store_true', default=True,
-                        help='use the global attention readout beta_i = softmax(omega_i)')
-    parser.add_argument('--no-global-attn', dest='use_global_attn', action='store_false',
-                        help='ablation: flatten the node features without global attention')
-    # temporal-attention variant: multi-dimensional attention on the temporal
-    # representation, followed by AT-DGNN's unmodified dynamic graph convolution
-    parser.add_argument('--temporal-attn', type=str, default='factorized',
-                        choices=['none', 'factorized', 'joint', 'sharp', 'sigmoid'],
-                        help='factorized = one softmax per temporal sub-axis (window, position)')
-    parser.add_argument('--temporal-dim', type=int, default=32,
-                        help='projection dimension d of the temporal attention keys')
-    parser.add_argument('--temporal-init-gain', type=float, default=1.0,
-                        help="initial value of the learnable gain used by --temporal-attn sharp")
-    parser.add_argument('--temporal-placement', type=str, default='pre', choices=['pre', 'post'],
-                        help='pre: gate the (B,C,T) temporal representation; '
-                             'post: gate the (B,N,T) node features right before the DGCN')
-    parser.add_argument('--temporal-residual', dest='temporal_residual', action='store_true',
-                        default=False, help='add an identity path to the temporal gate')
-    parser.add_argument('--attn-self-loop', dest='attn_self_loop', action='store_true', default=False,
-                        help='restore the explicit self-connection (A_att + I) that the plain '
-                             'softmax adjacency tends to lose')
+                        help='hidden width of the shared band-score MLP')
 
     # Reproduce the result using the saved model
     parser.add_argument('--reproduce', action='store_true', default=False)

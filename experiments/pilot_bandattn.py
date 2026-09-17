@@ -46,6 +46,8 @@ from utils.utils import get_trainable_parameter_num, LabelSmoothing  # noqa: E40
 sys.argv = _argv
 
 VARIANTS = ['AT-DGNN-BandAttn', 'BandAttn (static)', 'BandAttn (adaptive)']
+SCALE_VARIANTS = ['AT-DGNN-ScaleAttn', 'ScaleAttn (static)', 'ScaleAttn (adaptive)',
+                  'ScaleAttn (scalar)']
 
 
 # --------------------------------------------------------------------------- #
@@ -94,15 +96,27 @@ def build_model(name, args, idx_graph):
                   pool_step_rate=args.pool_step_rate, idx_graph=idx_graph)
     if name == 'AT-DGNN':
         return ATDGNN(**common)
+    # ---- multi-scale (frequency-scale) attention over the Tception branches ----
+    if name == 'AT-DGNN-ScaleAttn':
+        return ATDGNN_ScaleAttn(**common, scale_attn='both', scale_hidden=args.scale_hidden)
+    if name == 'ScaleAttn (static)':
+        return ATDGNN_ScaleAttn(**common, scale_attn='static', scale_hidden=args.scale_hidden)
+    if name == 'ScaleAttn (adaptive)':
+        return ATDGNN_ScaleAttn(**common, scale_attn='adaptive', scale_hidden=args.scale_hidden)
+    if name == 'ScaleAttn (scalar)':
+        return ATDGNN_ScaleAttn(**common, scale_attn='scalar', scale_hidden=args.scale_hidden)
     if name == 'AT-DGNN-BandAttn':
         return ATDGNN_BandAttn(**common, band_attn='both', band_kind=args.band_kind,
-                               band_numtaps=args.band_numtaps, band_hidden=args.band_hidden)
+                               band_numtaps=args.band_numtaps, band_hidden=args.band_hidden,
+                               band_fuse=args.band_fuse)
     if name == 'BandAttn (static)':
         return ATDGNN_BandAttn(**common, band_attn='static', band_kind=args.band_kind,
-                               band_numtaps=args.band_numtaps, band_hidden=args.band_hidden)
+                               band_numtaps=args.band_numtaps, band_hidden=args.band_hidden,
+                               band_fuse=args.band_fuse)
     if name == 'BandAttn (adaptive)':
         return ATDGNN_BandAttn(**common, band_attn='adaptive', band_kind=args.band_kind,
-                               band_numtaps=args.band_numtaps, band_hidden=args.band_hidden)
+                               band_numtaps=args.band_numtaps, band_hidden=args.band_hidden,
+                               band_fuse=args.band_fuse)
     raise ValueError(name)
 
 
@@ -215,6 +229,8 @@ def main():
     p.add_argument('--dropout', type=float, default=0.5)
     p.add_argument('--graph-type', default='fro')
     p.add_argument('--band-kind', default='fft', choices=['fft', 'fir'])
+    p.add_argument('--band-fuse', default='residual', choices=['residual', 'replace'])
+    p.add_argument('--scale-hidden', type=int, default=8)
     p.add_argument('--band-numtaps', type=int, default=129)
     p.add_argument('--band-hidden', type=int, default=8)
     p.add_argument('--folds', type=int, default=3)
@@ -227,7 +243,8 @@ def main():
     p.add_argument('--seed', type=int, default=3407)
     p.add_argument('--device', default='auto', choices=['auto', 'cpu', 'cuda'])
     p.add_argument('--threads', type=int, default=os.cpu_count())
-    p.add_argument('--variants', nargs='*', default=VARIANTS)
+    p.add_argument('--variant-set', default='band', choices=['band', 'scale'])
+    p.add_argument('--variants', nargs='*', default=None)
     p.add_argument('--save-model', action='store_true', default=False)
     p.add_argument('--ckpt-dir', default='experiments/results/ckpt')
     p.add_argument('--out', default='experiments/results/bandattn_seed3407.json')
@@ -237,6 +254,8 @@ def main():
         sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
+    if args.variants is None:
+        args.variants = VARIANTS if args.variant_set == 'band' else SCALE_VARIANTS
     torch.set_num_threads(args.threads)
     if args.device == 'cuda' or (args.device == 'auto' and torch.cuda.is_available()):
         device = torch.device('cuda')
@@ -270,6 +289,7 @@ def main():
                                  batch_size=args.batch_size, lr=args.lr, seed=args.seed,
                                  val_rate=args.val_rate, label_smoothing=args.LS_rate,
                                  band_kind=args.band_kind, band_hidden=args.band_hidden,
+                                 band_fuse=args.band_fuse,
                                  early_stopping=False),
                    results=results)
     with open(args.out, 'w', encoding='utf-8') as f:
